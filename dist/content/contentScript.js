@@ -396,13 +396,26 @@
   var MAXIMUM_HINT_LENGTH = 4;
   var PREFERRED_HINT_LENGTH = 2;
   var ALLOWED_HINT_CHARACTERS = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
-  function generateUniqueHints(interactiveElements) {
+  function generateUniqueHints(interactiveElements, domainMemory = {}) {
     if (interactiveElements.length === 0) {
       return;
     }
     const assignedHints = /* @__PURE__ */ new Set();
+    for (const element of interactiveElements) {
+      const normalizedLabel = element.semanticLabel?.trim().toLowerCase();
+      if (normalizedLabel && domainMemory[normalizedLabel]) {
+        const memoryHint = domainMemory[normalizedLabel];
+        if (!assignedHints.has(memoryHint)) {
+          element.generatedHint = memoryHint;
+          assignedHints.add(memoryHint);
+        }
+      }
+    }
     const elementCandidates = [];
     for (const element of interactiveElements) {
+      if (element.generatedHint) {
+        continue;
+      }
       const candidates = generateCandidateHints(element.semanticLabel);
       const scoredCandidates = candidates.map((hintText) => ({
         hintText,
@@ -927,6 +940,68 @@
     element.dispatchEvent(inputEvent);
   }
 
+  // applications/chrome_extension/content/memoryManager.ts
+  var currentDomainMemory = {};
+  var currentGlobalMemory = {};
+  function initializeMemoryManager() {
+    const domainKey = `memory_domain_${window.location.hostname}`;
+    const globalKey = "memory_global";
+    try {
+      if (chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.get([domainKey, globalKey], (syncResult) => {
+          if (chrome.runtime.lastError) {
+            console.warn("[EasyClick] Sync storage error:", chrome.runtime.lastError);
+            loadFromLocal(domainKey, globalKey);
+            return;
+          }
+          if (!syncResult[domainKey] && !syncResult[globalKey]) {
+            loadFromLocal(domainKey, globalKey);
+          } else {
+            currentDomainMemory = syncResult[domainKey] || {};
+            currentGlobalMemory = syncResult[globalKey] || {};
+          }
+        });
+      } else {
+        loadFromLocal(domainKey, globalKey);
+      }
+    } catch (error) {
+      console.warn("[EasyClick] Error initializing memory manager:", error);
+    }
+  }
+  function loadFromLocal(domainKey, globalKey) {
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get([domainKey, globalKey], (localResult) => {
+        currentDomainMemory = localResult[domainKey] || {};
+        currentGlobalMemory = localResult[globalKey] || {};
+      });
+    }
+  }
+  function getDomainMemory() {
+    return currentDomainMemory;
+  }
+  function rememberHint(semanticLabel, hint) {
+    if (!semanticLabel || !hint) return;
+    const normalizedLabel = semanticLabel.trim().toLowerCase();
+    if (!normalizedLabel) return;
+    currentDomainMemory[normalizedLabel] = hint;
+    const domainKey = `memory_domain_${window.location.hostname}`;
+    const payload = {
+      [domainKey]: currentDomainMemory
+    };
+    if (chrome.storage) {
+      if (chrome.storage.local) {
+        chrome.storage.local.set(payload).catch((err) => {
+          console.warn("[EasyClick] Failed to save memory to local storage:", err);
+        });
+      }
+      if (chrome.storage.sync) {
+        chrome.storage.sync.set(payload).catch((err) => {
+          console.warn("[EasyClick] Failed to save memory to sync storage:", err);
+        });
+      }
+    }
+  }
+
   // applications/chrome_extension/content/keyboardEngine.ts
   var currentTypedInput = "";
   var isHintModeCurrentlyActive = false;
@@ -1005,6 +1080,9 @@
       (element) => element.generatedHint.toLowerCase() === currentTypedInput
     );
     if (exactMatchElement) {
+      if (exactMatchElement.semanticLabel) {
+        rememberHint(exactMatchElement.semanticLabel, exactMatchElement.generatedHint);
+      }
       setTimeout(() => {
         executeElementAction(exactMatchElement.domElement, exactMatchElement.interactionType);
         requestHintModeDeactivation();
@@ -1148,7 +1226,7 @@
       isHintModeActive = false;
       return;
     }
-    generateUniqueHints(currentInteractiveElements2);
+    generateUniqueHints(currentInteractiveElements2, getDomainMemory());
     createOverlays(currentInteractiveElements2);
     activateKeyboardListening(currentInteractiveElements2, deactivateHintMode);
     attachDynamicPageObservers();
@@ -1242,10 +1320,11 @@
       deactivateHintMode();
       return;
     }
-    generateUniqueHints(currentInteractiveElements2);
+    generateUniqueHints(currentInteractiveElements2, getDomainMemory());
     createOverlays(currentInteractiveElements2);
     activateKeyboardListening(currentInteractiveElements2, deactivateHintMode);
   }
   console.log("[EasyClick] Content script loaded. Press Ctrl+. or Ctrl+; to activate hint mode.");
+  initializeMemoryManager();
   showContentScriptLoadedToast();
 })();

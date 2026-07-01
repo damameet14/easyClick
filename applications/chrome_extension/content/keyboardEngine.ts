@@ -12,6 +12,7 @@ import {
   resetOverlaysToUnfilteredState,
 } from "./overlayManager";
 import { executeElementAction } from "./actionExecutor";
+import { rememberHint } from "./memoryManager";
 
 /* ──────────────────────────────────────────────────────────────────────────
    State
@@ -169,6 +170,11 @@ function handleAlphabeticKeypress(character: string): void {
   );
 
   if (exactMatchElement) {
+    /* Remember successful hint mapping */
+    if (exactMatchElement.semanticLabel) {
+      rememberHint(exactMatchElement.semanticLabel, exactMatchElement.generatedHint);
+    }
+
     /* Brief visual delay before executing for user feedback */
     setTimeout(() => {
       executeElementAction(exactMatchElement.domElement, exactMatchElement.interactionType);

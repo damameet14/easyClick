@@ -17,6 +17,7 @@ import {
   deactivateKeyboardListening,
   isUserActivelyTyping,
 } from "./keyboardEngine";
+import { initializeMemoryManager, getDomainMemory } from "./memoryManager";
 
 /* ──────────────────────────────────────────────────────────────────────────
    State
@@ -203,7 +204,7 @@ function activateHintMode(): void {
   }
 
   /* Step 2: Generate unique hints */
-  generateUniqueHints(currentInteractiveElements);
+  generateUniqueHints(currentInteractiveElements, getDomainMemory());
 
   /* Step 3: Render overlays */
   createOverlays(currentInteractiveElements);
@@ -375,7 +376,7 @@ function regenerateHintsAndOverlays(): void {
     return;
   }
 
-  generateUniqueHints(currentInteractiveElements);
+  generateUniqueHints(currentInteractiveElements, getDomainMemory());
   createOverlays(currentInteractiveElements);
   activateKeyboardListening(currentInteractiveElements, deactivateHintMode);
 }
@@ -417,5 +418,6 @@ function throttleCallback<T extends (...arguments_: unknown[]) => void>(
    ──────────────────────────────────────────────────────────────────────── */
 
 console.log("[EasyClick] Content script loaded. Press Ctrl+. or Ctrl+; to activate hint mode.");
+initializeMemoryManager();
 showContentScriptLoadedToast();
 

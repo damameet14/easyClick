@@ -3,7 +3,7 @@
   "name": "EasyClick - Semantic Keyboard Navigator",
   "version": "1.0.0",
   "description": "Navigate any website without a mouse using human-readable, semantic keyboard hints.",
-  "permissions": ["activeTab"],
+  "permissions": ["activeTab", "storage"],
   "background": {
     "service_worker": "background/serviceWorker.js"
   },

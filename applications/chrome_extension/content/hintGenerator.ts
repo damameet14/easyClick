@@ -84,12 +84,24 @@ const ALLOWED_HINT_CHARACTERS = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
  *
  * @param interactiveElements - Elements to assign hints to (sorted by priority).
  */
-export function generateUniqueHints(interactiveElements: InteractiveElement[]): void {
+export function generateUniqueHints(interactiveElements: InteractiveElement[], domainMemory: Record<string, string> = {}): void {
   if (interactiveElements.length === 0) {
     return;
   }
 
   const assignedHints = new Set<string>();
+
+  /* Memory pre-pass: Assign hints from memory if available and not yet taken */
+  for (const element of interactiveElements) {
+    const normalizedLabel = element.semanticLabel?.trim().toLowerCase();
+    if (normalizedLabel && domainMemory[normalizedLabel]) {
+      const memoryHint = domainMemory[normalizedLabel];
+      if (!assignedHints.has(memoryHint)) {
+        element.generatedHint = memoryHint;
+        assignedHints.add(memoryHint);
+      }
+    }
+  }
 
   /* First pass: generate scored candidates for each element */
   const elementCandidates: Array<{
@@ -98,6 +110,10 @@ export function generateUniqueHints(interactiveElements: InteractiveElement[]): 
   }> = [];
 
   for (const element of interactiveElements) {
+    if (element.generatedHint) {
+      continue; // Skip elements already assigned by memory layer
+    }
+
     const candidates = generateCandidateHints(element.semanticLabel);
     const scoredCandidates = candidates.map((hintText) => ({
       hintText,
