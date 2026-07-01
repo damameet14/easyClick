@@ -14,6 +14,10 @@ const staticFilesToCopy = [
   { source: path.join(extensionSourceDirectory, "popup", "popup.css"), destination: path.join(distributionOutputDirectory, "popup", "popup.css") },
   { source: path.join(extensionSourceDirectory, "options", "options.html"), destination: path.join(distributionOutputDirectory, "options", "options.html") },
   { source: path.join(extensionSourceDirectory, "options", "options.css"), destination: path.join(distributionOutputDirectory, "options", "options.css") },
+  { source: path.join(extensionSourceDirectory, "assets", "icons", "icon-16.png"), destination: path.join(distributionOutputDirectory, "assets", "icons", "icon-16.png") },
+  { source: path.join(extensionSourceDirectory, "assets", "icons", "icon-32.png"), destination: path.join(distributionOutputDirectory, "assets", "icons", "icon-32.png") },
+  { source: path.join(extensionSourceDirectory, "assets", "icons", "icon-48.png"), destination: path.join(distributionOutputDirectory, "assets", "icons", "icon-48.png") },
+  { source: path.join(extensionSourceDirectory, "assets", "icons", "icon-128.png"), destination: path.join(distributionOutputDirectory, "assets", "icons", "icon-128.png") },
 ];
 
 function copyStaticFiles() {

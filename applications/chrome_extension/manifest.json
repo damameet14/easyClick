@@ -16,8 +16,19 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "EasyClick - Semantic Keyboard Navigator"
+    "default_title": "EasyClick - Semantic Keyboard Navigator",
+    "default_icon": {
+      "16": "assets/icons/icon-16.png",
+      "32": "assets/icons/icon-32.png",
+      "48": "assets/icons/icon-48.png",
+      "128": "assets/icons/icon-128.png"
+    }
   },
   "options_page": "options/options.html",
-  "icons": {}
+  "icons": {
+    "16": "assets/icons/icon-16.png",
+    "32": "assets/icons/icon-32.png",
+    "48": "assets/icons/icon-48.png",
+    "128": "assets/icons/icon-128.png"
+  }
 }
