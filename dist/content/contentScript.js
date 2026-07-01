@@ -958,6 +958,9 @@
     }
     onHintModeDeactivationCallback = null;
   }
+  function isUserActivelyTyping() {
+    return currentTypedInput.length > 0;
+  }
   function handleHintModeKeydown(event) {
     if (!isHintModeCurrentlyActive) {
       return;
@@ -1183,12 +1186,15 @@
       if (!hasPageMutationOutsideOverlay) {
         return;
       }
+      if (isUserActivelyTyping()) {
+        return;
+      }
       if (scrollResizeThrottleTimerId !== null) {
         return;
       }
       scrollResizeThrottleTimerId = setTimeout(() => {
         scrollResizeThrottleTimerId = null;
-        if (isHintModeActive) {
+        if (isHintModeActive && !isUserActivelyTyping()) {
           regenerateHintsAndOverlays();
         }
       }, SCROLL_RESIZE_THROTTLE_INTERVAL_MILLISECONDS);
@@ -1215,11 +1221,11 @@
     }
   }
   function handleScrollOrResize() {
-    if (!isHintModeActive) {
+    if (!isHintModeActive || isUserActivelyTyping()) {
       return;
     }
     if (scrollResizeThrottleTimerId !== null) {
-      return;
+      clearTimeout(scrollResizeThrottleTimerId);
     }
     scrollResizeThrottleTimerId = setTimeout(() => {
       scrollResizeThrottleTimerId = null;

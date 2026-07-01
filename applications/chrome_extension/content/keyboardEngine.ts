@@ -84,6 +84,14 @@ export function deactivateKeyboardListening(): void {
   onHintModeDeactivationCallback = null;
 }
 
+/**
+ * Returns true if the user has started typing a hint.
+ * Used to prevent disruptive page re-scans while the user is actively filtering.
+ */
+export function isUserActivelyTyping(): boolean {
+  return currentTypedInput.length > 0;
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Internal: Keyboard Handling
    ──────────────────────────────────────────────────────────────────────── */

@@ -12,7 +12,11 @@
 import { scanInteractiveElements, InteractiveElement } from "./elementScanner";
 import { generateUniqueHints } from "./hintGenerator";
 import { createOverlays, removeAllOverlays } from "./overlayManager";
-import { activateKeyboardListening, deactivateKeyboardListening } from "./keyboardEngine";
+import {
+  activateKeyboardListening,
+  deactivateKeyboardListening,
+  isUserActivelyTyping,
+} from "./keyboardEngine";
 
 /* ──────────────────────────────────────────────────────────────────────────
    State
@@ -268,7 +272,7 @@ function attachDynamicPageObservers(): void {
     const overlayContainer = document.getElementById(OVERLAY_CONTAINER_ELEMENT_ID);
 
     const hasPageMutationOutsideOverlay = mutationRecords.some((mutationRecord) => {
-      const mutationTarget = mutationRecord.target as HTMLElement;
+      const mutationTarget = mutationRecord.target as Node;
 
       /* Ignore mutations inside our overlay container */
       if (overlayContainer && (mutationTarget === overlayContainer || overlayContainer.contains(mutationTarget))) {
@@ -287,6 +291,11 @@ function attachDynamicPageObservers(): void {
       return;
     }
 
+    if (isUserActivelyTyping()) {
+      /* Do not disrupt the user if they are currently typing a hint sequence */
+      return;
+    }
+
     /* Throttle actual regeneration to avoid performance issues */
     if (scrollResizeThrottleTimerId !== null) {
       return;
@@ -294,7 +303,7 @@ function attachDynamicPageObservers(): void {
 
     scrollResizeThrottleTimerId = setTimeout(() => {
       scrollResizeThrottleTimerId = null;
-      if (isHintModeActive) {
+      if (isHintModeActive && !isUserActivelyTyping()) {
         regenerateHintsAndOverlays();
       }
     }, SCROLL_RESIZE_THROTTLE_INTERVAL_MILLISECONDS);
@@ -334,14 +343,13 @@ function detachDynamicPageObservers(): void {
  * Handles scroll or resize events with throttling.
  */
 function handleScrollOrResize(): void {
-  if (!isHintModeActive) {
+  if (!isHintModeActive || isUserActivelyTyping()) {
     return;
   }
 
   if (scrollResizeThrottleTimerId !== null) {
-    return;
+    clearTimeout(scrollResizeThrottleTimerId);
   }
-
   scrollResizeThrottleTimerId = setTimeout(() => {
     scrollResizeThrottleTimerId = null;
     if (isHintModeActive) {
