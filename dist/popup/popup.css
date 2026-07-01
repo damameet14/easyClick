@@ -1,0 +1,246 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   EasyClick Popup Styles
+   Premium dark-theme glassmorphism design
+   ────────────────────────────────────────────────────────────────────── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  background: linear-gradient(145deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+  color: #e6edf3;
+  min-width: 300px;
+  min-height: 360px;
+}
+
+.popup-container {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.popup-header {
+  text-align: center;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(100, 160, 255, 0.12);
+}
+
+.popup-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.popup-logo__icon {
+  font-size: 26px;
+  filter: drop-shadow(0 0 8px rgba(0, 200, 255, 0.4));
+}
+
+.popup-logo__title {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #58a6ff 0%, #00f0ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.3px;
+}
+
+.popup-header__subtitle {
+  font-size: 11px;
+  color: #7d8590;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* ── Status ────────────────────────────────────────────────────────────── */
+
+.popup-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(22, 27, 34, 0.8);
+  border: 1px solid rgba(100, 160, 255, 0.1);
+}
+
+.popup-status__indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.popup-status__indicator--active {
+  background: #3fb950;
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.5);
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.popup-status__indicator--inactive {
+  background: #f85149;
+  box-shadow: 0 0 8px rgba(248, 81, 73, 0.4);
+}
+
+.popup-status__text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(63, 185, 80, 0.5); }
+  50% { opacity: 0.7; box-shadow: 0 0 14px rgba(63, 185, 80, 0.7); }
+}
+
+/* ── Shortcut Info ─────────────────────────────────────────────────────── */
+
+.popup-shortcut-info {
+  text-align: center;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(22, 27, 34, 0.6);
+  border: 1px solid rgba(100, 160, 255, 0.08);
+}
+
+.popup-shortcut-info__heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d8590;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+}
+
+.popup-shortcut-info__keys {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.popup-key {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+  background: rgba(30, 38, 50, 0.9);
+  border: 1px solid rgba(100, 160, 255, 0.25);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.popup-key--small {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+
+.popup-key-separator {
+  font-size: 14px;
+  color: #484f58;
+  font-weight: 300;
+}
+
+.popup-shortcut-info__alternative {
+  font-size: 11px;
+  color: #7d8590;
+}
+
+.popup-shortcut-info__alternative .popup-key {
+  vertical-align: middle;
+}
+
+/* ── Instructions ──────────────────────────────────────────────────────── */
+
+.popup-instructions {
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(22, 27, 34, 0.4);
+  border: 1px solid rgba(100, 160, 255, 0.06);
+}
+
+.popup-instructions__heading {
+  font-size: 11px;
+  font-weight: 600;
+  color: #7d8590;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+}
+
+.popup-instructions__steps {
+  list-style: none;
+  counter-reset: step-counter;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.popup-instructions__steps li {
+  counter-increment: step-counter;
+  font-size: 12px;
+  color: #b1bac4;
+  padding-left: 28px;
+  position: relative;
+  line-height: 1.5;
+}
+
+.popup-instructions__steps li::before {
+  content: counter(step-counter);
+  position: absolute;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Footer ────────────────────────────────────────────────────────────── */
+
+.popup-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid rgba(100, 160, 255, 0.08);
+}
+
+.popup-footer__version {
+  font-size: 10px;
+  color: #484f58;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.popup-footer__settings-link {
+  font-size: 11px;
+  color: #58a6ff;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.popup-footer__settings-link:hover {
+  color: #79c0ff;
+  text-decoration: underline;
+}

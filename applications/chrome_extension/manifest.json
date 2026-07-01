@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "EasyClick - Semantic Keyboard Navigator",
+  "version": "1.0.0",
+  "description": "Navigate any website without a mouse using human-readable, semantic keyboard hints.",
+  "permissions": ["activeTab"],
+  "background": {
+    "service_worker": "background/serviceWorker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "EasyClick - Semantic Keyboard Navigator"
+  },
+  "options_page": "options/options.html",
+  "icons": {}
+}

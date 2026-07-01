@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyClick — Semantic Keyboard Navigator</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <header class="popup-header">
+      <div class="popup-logo">
+        <span class="popup-logo__icon">⌨</span>
+        <h1 class="popup-logo__title">EasyClick</h1>
+      </div>
+      <p class="popup-header__subtitle">Semantic Keyboard Navigator</p>
+    </header>
+
+    <section class="popup-status" id="popup-status-section">
+      <div class="popup-status__indicator popup-status__indicator--active" id="popup-status-indicator"></div>
+      <span class="popup-status__text" id="popup-status-text">Active</span>
+    </section>
+
+    <section class="popup-shortcut-info">
+      <h2 class="popup-shortcut-info__heading">Activate Hint Mode</h2>
+      <div class="popup-shortcut-info__keys">
+        <kbd class="popup-key">Ctrl</kbd>
+        <span class="popup-key-separator">+</span>
+        <kbd class="popup-key">Alt</kbd>
+      </div>
+      <p class="popup-shortcut-info__alternative">
+        or <kbd class="popup-key popup-key--small">Ctrl</kbd>
+        <span class="popup-key-separator">+</span>
+        <kbd class="popup-key popup-key--small">;</kbd>
+      </p>
+    </section>
+
+    <section class="popup-instructions">
+      <h2 class="popup-instructions__heading">How it works</h2>
+      <ol class="popup-instructions__steps">
+        <li>Press the shortcut to scan the page</li>
+        <li>Type the hint letters shown on elements</li>
+        <li>The action is executed automatically</li>
+      </ol>
+    </section>
+
+    <footer class="popup-footer">
+      <span class="popup-footer__version" id="popup-version-text">v1.0.0</span>
+      <a href="#" class="popup-footer__settings-link" id="popup-settings-link">Settings</a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

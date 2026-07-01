@@ -1,0 +1,148 @@
+/* ──────────────────────────────────────────────────────────────────────────
+   EasyClick Options Page Styles
+   ────────────────────────────────────────────────────────────────────── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+  background: linear-gradient(145deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+  color: #e6edf3;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.options-container {
+  max-width: 560px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.options-header {
+  text-align: center;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(100, 160, 255, 0.12);
+}
+
+.options-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.options-logo__icon {
+  font-size: 32px;
+  filter: drop-shadow(0 0 10px rgba(0, 200, 255, 0.4));
+}
+
+.options-logo__title {
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #58a6ff 0%, #00f0ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.options-header__subtitle {
+  font-size: 12px;
+  color: #7d8590;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+/* ── Section ───────────────────────────────────────────────────────────── */
+
+.options-section {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(22, 27, 34, 0.7);
+  border: 1px solid rgba(100, 160, 255, 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.options-section__heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7d8590;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 14px;
+}
+
+/* ── Field ─────────────────────────────────────────────────────────────── */
+
+.options-field {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.options-field__label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #e6edf3;
+}
+
+.options-field__value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.options-field__note {
+  font-size: 10px;
+  color: #484f58;
+  margin-left: 8px;
+}
+
+.options-key {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e6edf3;
+  background: rgba(30, 38, 50, 0.9);
+  border: 1px solid rgba(100, 160, 255, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.options-key-separator {
+  font-size: 13px;
+  color: #484f58;
+}
+
+/* ── About ─────────────────────────────────────────────────────────────── */
+
+.options-about {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.options-about__description {
+  font-size: 13px;
+  color: #b1bac4;
+  line-height: 1.6;
+}
+
+.options-about__version {
+  font-size: 11px;
+  color: #484f58;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}

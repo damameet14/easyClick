@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EasyClick — Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="options-container">
+    <header class="options-header">
+      <div class="options-logo">
+        <span class="options-logo__icon">⌨</span>
+        <h1 class="options-logo__title">EasyClick Settings</h1>
+      </div>
+      <p class="options-header__subtitle">Semantic Keyboard Navigator Configuration</p>
+    </header>
+
+    <section class="options-section">
+      <h2 class="options-section__heading">Activation</h2>
+      <div class="options-field">
+        <label class="options-field__label" for="activation-shortcut-display">Keyboard Shortcut</label>
+        <div class="options-field__value">
+          <kbd class="options-key">Ctrl</kbd>
+          <span class="options-key-separator">+</span>
+          <kbd class="options-key">Alt</kbd>
+          <span class="options-field__note">(Not configurable in V1)</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="options-section">
+      <h2 class="options-section__heading">About</h2>
+      <div class="options-about">
+        <p class="options-about__description">
+          EasyClick lets you navigate any website without a mouse by assigning
+          semantic, human-readable keyboard hints to visible interactive elements.
+        </p>
+        <p class="options-about__version" id="options-version-text">Version 1.0.0</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
