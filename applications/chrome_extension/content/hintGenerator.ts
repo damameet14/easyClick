@@ -75,31 +75,66 @@ const MAXIMUM_HINT_LENGTH = 4;
 /** Preferred hint length for scoring. */
 const PREFERRED_HINT_LENGTH = 2;
 
-/** Characters allowed in hints. */
-const ALLOWED_HINT_CHARACTERS = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
+/** Characters allowed in hints (Primary 15 keys). */
+const ALLOWED_HINT_CHARACTERS = new Set("qwertasdfgzxcvb".split(""));
+
+/** The 15 primary ergonomic keys */
+const PRIMARY_KEYS = "qwertasdfgzxcvb".split("");
+
+/** The fallback secondary keys (to be used only after primary keys are exhausted) */
+const SECONDARY_KEYS = "yuiophjklnm".split("");
+
+import { ElementFingerprint, scoreElementAgainstFingerprint } from "./fingerprintEngine";
 
 /**
- * Generates unique ergonomic hints for all provided interactive elements.
- * Mutates each element's `generatedHint` property in-place.
+ * Main Hint Generator Engine
+ *
+ * Takes a list of scanned interactive elements and assigns a unique,
+ * ergonomically optimized keyboard hint to each. Uses a memory layer
+ * to preserve previously successful hints.
  *
  * @param interactiveElements - Elements to assign hints to (sorted by priority).
+ * @param domainMemory - Loaded memory mapping hints to element fingerprints.
  */
-export function generateUniqueHints(interactiveElements: InteractiveElement[], domainMemory: Record<string, string> = {}): void {
+export function generateUniqueHints(
+  interactiveElements: InteractiveElement[],
+  domainMemory: Record<string, ElementFingerprint> = {}
+): void {
   if (interactiveElements.length === 0) {
     return;
   }
 
   const assignedHints = new Set<string>();
+  const memoryHintsUsedThisPass = new Set<string>();
 
-  /* Memory pre-pass: Assign hints from memory if available and not yet taken */
-  for (const element of interactiveElements) {
-    const normalizedLabel = element.semanticLabel?.trim().toLowerCase();
-    if (normalizedLabel && domainMemory[normalizedLabel]) {
-      const memoryHint = domainMemory[normalizedLabel];
-      if (!assignedHints.has(memoryHint)) {
-        element.generatedHint = memoryHint;
-        assignedHints.add(memoryHint);
+  /* Memory pre-pass: Assign hints from memory using fingerprint scoring */
+  for (const [memoryHint, fingerprint] of Object.entries(domainMemory)) {
+    if (memoryHintsUsedThisPass.has(memoryHint)) continue;
+
+    let bestScore = 0;
+    let bestElement: InteractiveElement | null = null;
+
+    for (const element of interactiveElements) {
+      if (element.generatedHint) continue;
+
+      const score = scoreElementAgainstFingerprint(
+        element.domElement,
+        element.interactionType,
+        element.rawSemanticLabel,
+        fingerprint
+      );
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestElement = element;
       }
+    }
+
+    // Minimum score of 40 ensures we don't assign hints to completely unrelated elements
+    if (bestElement && bestScore >= 40) {
+      bestElement.generatedHint = memoryHint;
+      memoryHintsUsedThisPass.add(memoryHint);
+      assignedHints.add(memoryHint); // Reserve it only if it's actually on the page
     }
   }
 
@@ -220,14 +255,19 @@ function generateCandidateHints(semanticLabel: string): string[] {
     candidates.push(consonantsInFirstToken[0] + consonantsInFirstToken[1]);
   }
 
-  /* Deduplicate candidates */
+  /* Deduplicate and filter candidates */
   const uniqueCandidates: string[] = [];
   const seenCandidates = new Set<string>();
   for (const candidate of candidates) {
-    if (!seenCandidates.has(candidate)) {
+    const isAllowed = candidate.split("").every(c => ALLOWED_HINT_CHARACTERS.has(c));
+    if (isAllowed && !seenCandidates.has(candidate)) {
       seenCandidates.add(candidate);
       uniqueCandidates.push(candidate);
     }
+  }
+
+  if (uniqueCandidates.length === 0) {
+    return generateErgonomicFallbackCandidates();
   }
 
   return uniqueCandidates;
@@ -272,11 +312,10 @@ function extractVowels(text: string): string[] {
  * Uses preferred left-hand key combinations.
  */
 function generateErgonomicFallbackCandidates(): string[] {
-  const preferredKeys = "asdfgqwertzxcv".split("");
   const candidates: string[] = [];
 
-  for (const firstKey of preferredKeys) {
-    for (const secondKey of preferredKeys) {
+  for (const firstKey of PRIMARY_KEYS) {
+    for (const secondKey of PRIMARY_KEYS) {
       if (firstKey !== secondKey) {
         candidates.push(firstKey + secondKey);
       }
@@ -419,42 +458,38 @@ function computeLengthPenalty(hintText: string): number {
  * purely ergonomic codes.
  */
 function generateFallbackHint(assignedHints: Set<string>, semanticLabel: string): string {
-  const tokens = tokenizeSemanticLabel(semanticLabel);
-  const baseCharacter = tokens.length > 0 && tokens[0][0] ? tokens[0][0] : "a";
-
-  /* Try extending with preferred keys */
-  const extensionKeys = "asdfgqwertzxcvbhjklnm".split("");
-
-  for (let hintLength = 2; hintLength <= MAXIMUM_HINT_LENGTH; hintLength++) {
-    for (const extensionKey of extensionKeys) {
-      const candidateHint = baseCharacter + extensionKey;
-      if (candidateHint.length === hintLength && !assignedHints.has(candidateHint)) {
-        return candidateHint;
-      }
+  /* 1. Try 2-letter combos from PRIMARY_KEYS */
+  for (const keyA of PRIMARY_KEYS) {
+    for (const keyB of PRIMARY_KEYS) {
+      const hint = keyA + keyB;
+      if (!assignedHints.has(hint)) return hint;
     }
+  }
 
-    /* Try three-character hints */
-    if (hintLength === 3) {
-      for (const keyA of extensionKeys) {
-        for (const keyB of extensionKeys) {
-          const candidateHint = baseCharacter + keyA + keyB;
-          if (!assignedHints.has(candidateHint)) {
-            return candidateHint;
-          }
-        }
+  /* 2. Try 3-letter combos from PRIMARY_KEYS */
+  for (const keyA of PRIMARY_KEYS) {
+    for (const keyB of PRIMARY_KEYS) {
+      for (const keyC of PRIMARY_KEYS) {
+        const hint = keyA + keyB + keyC;
+        if (!assignedHints.has(hint)) return hint;
       }
     }
   }
 
-  /* Ultimate fallback: sequential ergonomic codes */
-  const fallbackKeys = "asdfgqwertzxcv".split("");
-  for (const keyA of fallbackKeys) {
-    for (const keyB of fallbackKeys) {
-      for (const keyC of fallbackKeys) {
-        const candidateHint = keyA + keyB + keyC;
-        if (!assignedHints.has(candidateHint)) {
-          return candidateHint;
-        }
+  /* 3. Try 2-letter combos from SECONDARY_KEYS */
+  for (const keyA of SECONDARY_KEYS) {
+    for (const keyB of SECONDARY_KEYS) {
+      const hint = keyA + keyB;
+      if (!assignedHints.has(hint)) return hint;
+    }
+  }
+
+  /* 4. Try 3-letter combos from SECONDARY_KEYS */
+  for (const keyA of SECONDARY_KEYS) {
+    for (const keyB of SECONDARY_KEYS) {
+      for (const keyC of SECONDARY_KEYS) {
+        const hint = keyA + keyB + keyC;
+        if (!assignedHints.has(hint)) return hint;
       }
     }
   }

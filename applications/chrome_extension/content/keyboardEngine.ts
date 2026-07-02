@@ -170,14 +170,15 @@ function handleAlphabeticKeypress(character: string): void {
   );
 
   if (exactMatchElement) {
-    /* Remember successful hint mapping */
-    if (exactMatchElement.semanticLabel) {
-      rememberHint(exactMatchElement.semanticLabel, exactMatchElement.generatedHint);
-    }
-
     /* Brief visual delay before executing for user feedback */
     setTimeout(() => {
       executeElementAction(exactMatchElement.domElement, exactMatchElement.interactionType);
+
+      // Store the successful hint using the raw semantic label, element type, and DOM element
+      if (exactMatchElement.rawSemanticLabel) {
+        rememberHint(exactMatchElement.domElement, exactMatchElement.interactionType, exactMatchElement.rawSemanticLabel, exactMatchElement.generatedHint);
+      }
+
       requestHintModeDeactivation();
     }, 80);
     return;

@@ -39,7 +39,10 @@ export interface InteractiveElement {
   /** Categorized interaction type. */
   interactionType: InteractiveElementType;
 
-  /** Human-readable semantic label extracted from the element. */
+  /** The exact raw string extracted from the UI (e.g. "Search...") used for exact memory matching. */
+  rawSemanticLabel: string;
+
+  /** Human-readable semantic label extracted from the element, normalized for scoring. */
   semanticLabel: string;
 
   /** The keyboard hint assigned by the hint generator. */
@@ -98,11 +101,11 @@ const CONTENT_EDITABLE_SELECTOR = '[contenteditable="true"], [contenteditable=""
 /**
  * Scans the entire page for interactive elements, filters by visibility,
  * extracts semantic labels, and returns enriched InteractiveElement descriptors.
- *
+ * @param filterType - Optional filter to restrict scanning to specific types.
  * @returns An array of InteractiveElement objects for all currently visible,
  *          interactable elements on the page.
  */
-export function scanInteractiveElements(): InteractiveElement[] {
+export function scanInteractiveElements(filterType: "all" | "buttons_and_links" = "all"): InteractiveElement[] {
   const candidateElements = collectCandidateElements();
   const deduplicatedElements = deduplicateElements(candidateElements);
   const interactiveElements: InteractiveElement[] = [];
@@ -115,7 +118,13 @@ export function scanInteractiveElements(): InteractiveElement[] {
     }
 
     const interactionType = classifyElementInteractionType(domElement);
-    const semanticLabel = extractSemanticLabel(domElement);
+    
+    if (filterType === "buttons_and_links") {
+      if (interactionType !== "button" && interactionType !== "link") {
+        continue;
+      }
+    }
+    const { raw: rawSemanticLabel, normalized: semanticLabel } = extractSemanticLabel(domElement);
     const viewportBoundingRectangle = domElement.getBoundingClientRect();
     const hintAssignmentPriority = computeElementPriority(domElement, interactionType, semanticLabel);
 
@@ -123,6 +132,7 @@ export function scanInteractiveElements(): InteractiveElement[] {
       uniqueIdentifier: `ec-${elementIndex++}`,
       domElement,
       interactionType,
+      rawSemanticLabel,
       semanticLabel,
       generatedHint: "",
       isCurrentlyVisible: true,
@@ -204,15 +214,26 @@ function collectCursorPointerElements(existingCandidates: HTMLElement[]): void {
 }
 
 /**
- * Removes duplicate element references from the candidate list.
+ * Removes duplicate element references and aggressively filters out child elements 
+ * that are fully contained within interactive parent elements (e.g., SVG inside a Button).
  */
 function deduplicateElements(elements: HTMLElement[]): HTMLElement[] {
-  const uniqueElementSet = new Set<HTMLElement>();
+  const uniqueElementSet = new Set<HTMLElement>(elements);
   const deduplicatedList: HTMLElement[] = [];
 
-  for (const element of elements) {
-    if (!uniqueElementSet.has(element)) {
-      uniqueElementSet.add(element);
+  for (const element of uniqueElementSet) {
+    let isChildOfInteractive = false;
+    let current = element.parentElement;
+    
+    while (current && current !== document.body) {
+      if (uniqueElementSet.has(current)) {
+        isChildOfInteractive = true;
+        break;
+      }
+      current = current.parentElement;
+    }
+
+    if (!isChildOfInteractive) {
       deduplicatedList.push(element);
     }
   }

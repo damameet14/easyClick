@@ -18,6 +18,8 @@ import {
   isUserActivelyTyping,
 } from "./keyboardEngine";
 import { initializeMemoryManager, getDomainMemory } from "./memoryManager";
+import { activateHoverCaptureMode } from "./hoverCaptureEngine";
+import { scoreElementAgainstFingerprint } from "./fingerprintEngine";
 
 /* ──────────────────────────────────────────────────────────────────────────
    State
@@ -65,49 +67,57 @@ document.addEventListener("keydown", (event: KeyboardEvent) => {
   if (event.key === "Control") {
     isControlKeyCurrentlyHeld = true;
     wasNonModifierKeyPressedDuringModifierSequence = false;
-
-    /* If Alt is already held, this completes the Ctrl+Alt combo */
-    if (isAltKeyCurrentlyHeld) {
-      event.preventDefault();
-      toggleHintMode();
-      return;
-    }
     return;
   }
 
   if (event.key === "Alt") {
     isAltKeyCurrentlyHeld = true;
     wasNonModifierKeyPressedDuringModifierSequence = false;
-
-    /* If Ctrl is already held, this completes the Ctrl+Alt combo */
+    
+    // Ctrl + Alt -> Explicit Save Mode
+    // Ctrl + Shift + Alt -> Buttons & Links Mode
     if (isControlKeyCurrentlyHeld) {
       event.preventDefault();
-      toggleHintMode();
+      if (event.shiftKey) {
+        toggleHintMode("buttons_and_links");
+      } else {
+        toggleHintMode("explicit_save_only");
+      }
       return;
     }
     return;
   }
 
-  /* Mark that a non-modifier key was pressed (invalidates Ctrl+Alt sequence) */
+  /* Mark that a non-modifier key was pressed (invalidates modifier sequences) */
   if (event.key !== "Shift" && event.key !== "Meta") {
     wasNonModifierKeyPressedDuringModifierSequence = true;
   }
 
-  /* Ctrl + . (period) — primary activation shortcut */
+  /* Ctrl + Shift + S — Hover Capture Mode */
+  if (event.key.toLowerCase() === "s" && event.ctrlKey && event.shiftKey && !event.altKey) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    deactivateHintMode(); // Ensure normal mode is off
+    activateHoverCaptureMode();
+    return;
+  }
+
+  /* Ctrl + . (period) — normal activation */
   if (event.key === "." && event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    toggleHintMode();
+    toggleHintMode("all");
     return;
   }
 
-  /* Ctrl + ; — secondary activation shortcut */
+  /* Ctrl + ; — normal secondary activation */
   if (event.key === ";" && event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) {
     event.preventDefault();
     event.stopPropagation();
     event.stopImmediatePropagation();
-    toggleHintMode();
+    toggleHintMode("all");
     return;
   }
 }, true);
@@ -172,11 +182,11 @@ function showContentScriptLoadedToast(): void {
 /**
  * Toggles hint mode on or off.
  */
-function toggleHintMode(): void {
+function toggleHintMode(mode: "all" | "buttons_and_links" | "explicit_save_only" = "all"): void {
   if (isHintModeActive) {
     deactivateHintMode();
   } else {
-    activateHintMode();
+    activateHintMode(mode);
   }
 }
 
@@ -188,7 +198,7 @@ function toggleHintMode(): void {
  * 4. Starts keyboard listening for hint input.
  * 5. Attaches dynamic page observers.
  */
-function activateHintMode(): void {
+function activateHintMode(mode: "all" | "buttons_and_links" | "explicit_save_only" = "all"): void {
   if (isHintModeActive) {
     return;
   }
@@ -196,15 +206,45 @@ function activateHintMode(): void {
   isHintModeActive = true;
 
   /* Step 1: Scan for interactive elements */
-  currentInteractiveElements = scanInteractiveElements();
+  let scannedElements = scanInteractiveElements(mode === "buttons_and_links" ? "buttons_and_links" : "all");
+
+  if (scannedElements.length === 0) {
+    isHintModeActive = false;
+    return;
+  }
+
+  /* Handle Explicit Save Mode */
+  if (mode === "explicit_save_only") {
+    const memory = getDomainMemory();
+    const explicitlySavedElements: typeof scannedElements = [];
+    
+    for (const [memoryHint, fingerprint] of Object.entries(memory)) {
+      let bestScore = 0;
+      let bestElement = null;
+      for (const element of scannedElements) {
+        const score = scoreElementAgainstFingerprint(element.domElement, element.interactionType, element.rawSemanticLabel, fingerprint);
+        if (score > bestScore) {
+          bestScore = score;
+          bestElement = element;
+        }
+      }
+      if (bestElement && bestScore >= 40) {
+        bestElement.generatedHint = memoryHint;
+        explicitlySavedElements.push(bestElement);
+      }
+    }
+    
+    currentInteractiveElements = explicitlySavedElements;
+  } else {
+    currentInteractiveElements = scannedElements;
+    /* Step 2: Generate unique hints (Memory pre-pass handles explicitly saved ones naturally) */
+    generateUniqueHints(currentInteractiveElements, getDomainMemory());
+  }
 
   if (currentInteractiveElements.length === 0) {
     isHintModeActive = false;
     return;
   }
-
-  /* Step 2: Generate unique hints */
-  generateUniqueHints(currentInteractiveElements, getDomainMemory());
 
   /* Step 3: Render overlays */
   createOverlays(currentInteractiveElements);

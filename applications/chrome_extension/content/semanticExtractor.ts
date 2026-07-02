@@ -36,19 +36,19 @@ const SEMANTIC_EXTRACTION_STRATEGIES: Array<(element: HTMLElement) => string> = 
  * the first non-empty result, normalized and trimmed.
  *
  * @param element - The HTML element to extract a label from.
- * @returns A normalized semantic label string, or empty string if none found.
+ * @returns An object containing both the raw extracted string and its normalized form.
  */
-export function extractSemanticLabel(element: HTMLElement): string {
+export function extractSemanticLabel(element: HTMLElement): { raw: string; normalized: string } {
   for (const extractionStrategy of SEMANTIC_EXTRACTION_STRATEGIES) {
     const extractedText = extractionStrategy(element);
     const normalizedText = normalizeExtractedText(extractedText);
 
     if (normalizedText.length > 0) {
-      return normalizedText;
+      return { raw: extractedText.trim(), normalized: normalizedText };
     }
   }
 
-  return "";
+  return { raw: "", normalized: "" };
 }
 
 /**

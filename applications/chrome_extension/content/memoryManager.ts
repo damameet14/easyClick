@@ -10,10 +10,12 @@
  * as requested by user.
  */
 
-export type DomainMemory = Record<string, string>;
+import { ElementFingerprint, generateFingerprint } from "./fingerprintEngine";
+
+export type DomainMemory = Record<string, ElementFingerprint>;
 
 let currentDomainMemory: DomainMemory = {};
-let currentGlobalMemory: Record<string, string> = {};
+let currentGlobalMemory: Record<string, ElementFingerprint> = {};
 
 /**
  * Initializes the memory layer by loading stored preferences
@@ -60,35 +62,30 @@ function loadFromLocal(domainKey: string, globalKey: string): void {
 }
 
 /**
- * Returns the currently loaded domain memory mapping semantic labels to hints.
+ * Returns the currently loaded domain memory mapping hints to element fingerprints.
  */
 export function getDomainMemory(): DomainMemory {
   return currentDomainMemory;
 }
 
 /**
- * Returns the currently loaded global memory mapping semantic labels to hints.
+ * Returns the currently loaded global memory mapping hints to element fingerprints.
  */
-export function getGlobalMemory(): Record<string, string> {
+export function getGlobalMemory(): Record<string, ElementFingerprint> {
   return currentGlobalMemory;
 }
 
 /**
- * Remembers a successfully executed hint for a given semantic label
+ * Remembers a successfully executed or explicitly saved hint for a given DOM element
  * on the current domain.
- *
- * @param semanticLabel - The extracted semantic label of the element
- * @param hint - The executed hint
  */
-export function rememberHint(semanticLabel: string, hint: string): void {
-  if (!semanticLabel || !hint) return;
+export function rememberHint(element: HTMLElement, interactionType: string, rawSemanticLabel: string, hint: string): void {
+  if (!element || !hint) return;
   
-  // Normalize label
-  const normalizedLabel = semanticLabel.trim().toLowerCase();
-  if (!normalizedLabel) return;
+  const fingerprint = generateFingerprint(element, interactionType, rawSemanticLabel);
   
-  // Update in-memory state
-  currentDomainMemory[normalizedLabel] = hint;
+  // Update in-memory state: map hint -> fingerprint
+  currentDomainMemory[hint] = fingerprint;
 
   const domainKey = `memory_domain_${window.location.hostname}`;
 
@@ -97,16 +94,20 @@ export function rememberHint(semanticLabel: string, hint: string): void {
   };
 
   // Write to both local and sync storages
-  if (chrome.storage) {
-    if (chrome.storage.local) {
-      chrome.storage.local.set(payload).catch(err => {
-        console.warn("[EasyClick] Failed to save memory to local storage:", err);
-      });
+  try {
+    if (chrome.storage) {
+      if (chrome.storage.local) {
+        chrome.storage.local.set(payload).catch(err => {
+          console.warn("[EasyClick] Failed to save memory to local storage:", err);
+        });
+      }
+      if (chrome.storage.sync) {
+        chrome.storage.sync.set(payload).catch(err => {
+          console.warn("[EasyClick] Failed to save memory to sync storage:", err);
+        });
+      }
     }
-    if (chrome.storage.sync) {
-      chrome.storage.sync.set(payload).catch(err => {
-        console.warn("[EasyClick] Failed to save memory to sync storage:", err);
-      });
-    }
+  } catch (error) {
+    console.warn("[EasyClick] Extension context invalidated or storage error:", error);
   }
 }

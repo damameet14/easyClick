@@ -73,10 +73,10 @@
       const extractedText = extractionStrategy(element);
       const normalizedText = normalizeExtractedText(extractedText);
       if (normalizedText.length > 0) {
-        return normalizedText;
+        return { raw: extractedText.trim(), normalized: normalizedText };
       }
     }
-    return "";
+    return { raw: "", normalized: "" };
   }
   function extractVisibleTextContent(element) {
     const tagName = element.tagName.toLowerCase();
@@ -202,9 +202,9 @@
   ].join(", ");
   var FOCUSABLE_TABINDEX_SELECTOR = "[tabindex]";
   var CONTENT_EDITABLE_SELECTOR = '[contenteditable="true"], [contenteditable=""]';
-  function scanInteractiveElements() {
-    const candidateElements = collectCandidateElements();
-    const deduplicatedElements = deduplicateElements(candidateElements);
+  function scanInteractiveElements(filterType = "all") {
+    const candidateElements2 = collectCandidateElements();
+    const deduplicatedElements = deduplicateElements(candidateElements2);
     const interactiveElements = [];
     let elementIndex = 0;
     for (const domElement of deduplicatedElements) {
@@ -212,13 +212,19 @@
         continue;
       }
       const interactionType = classifyElementInteractionType(domElement);
-      const semanticLabel = extractSemanticLabel(domElement);
+      if (filterType === "buttons_and_links") {
+        if (interactionType !== "button" && interactionType !== "link") {
+          continue;
+        }
+      }
+      const { raw: rawSemanticLabel, normalized: semanticLabel } = extractSemanticLabel(domElement);
       const viewportBoundingRectangle = domElement.getBoundingClientRect();
       const hintAssignmentPriority = computeElementPriority(domElement, interactionType, semanticLabel);
       interactiveElements.push({
         uniqueIdentifier: `ec-${elementIndex++}`,
         domElement,
         interactionType,
+        rawSemanticLabel,
         semanticLabel,
         generatedHint: "",
         isCurrentlyVisible: true,
@@ -268,11 +274,19 @@
     }
   }
   function deduplicateElements(elements) {
-    const uniqueElementSet = /* @__PURE__ */ new Set();
+    const uniqueElementSet = new Set(elements);
     const deduplicatedList = [];
-    for (const element of elements) {
-      if (!uniqueElementSet.has(element)) {
-        uniqueElementSet.add(element);
+    for (const element of uniqueElementSet) {
+      let isChildOfInteractive = false;
+      let current = element.parentElement;
+      while (current && current !== document.body) {
+        if (uniqueElementSet.has(current)) {
+          isChildOfInteractive = true;
+          break;
+        }
+        current = current.parentElement;
+      }
+      if (!isChildOfInteractive) {
         deduplicatedList.push(element);
       }
     }
@@ -324,6 +338,91 @@
     const distanceFromCenter = Math.abs(rect.top - viewportCenterY) / viewportCenterY;
     priority += Math.floor(distanceFromCenter * 10);
     return priority;
+  }
+
+  // applications/chrome_extension/content/fingerprintEngine.ts
+  function generateFingerprint(element, interactionType, rawLabel) {
+    return {
+      tagName: element.tagName.toLowerCase(),
+      contextLandmark: findContextLandmark(element),
+      stableClasses: extractStableClasses(element),
+      path: buildStructuralPath(element),
+      rawLabel,
+      interactionType
+    };
+  }
+  function scoreElementAgainstFingerprint(element, interactionType, rawLabel, fingerprint) {
+    let score = 0;
+    if (interactionType !== fingerprint.interactionType) return 0;
+    if (element.tagName.toLowerCase() === fingerprint.tagName) {
+      score += 20;
+    }
+    if (findContextLandmark(element) === fingerprint.contextLandmark) {
+      score += 30;
+    }
+    const elementClasses = new Set(extractStableClasses(element));
+    for (const cls of fingerprint.stableClasses) {
+      if (elementClasses.has(cls)) {
+        score += 10;
+      }
+    }
+    if (rawLabel === fingerprint.rawLabel) {
+      score += 40;
+    } else if (fingerprint.rawLabel && rawLabel.includes(fingerprint.rawLabel.split(" ")[0])) {
+      score += 15;
+    }
+    const currentPath = buildStructuralPath(element);
+    if (currentPath === fingerprint.path) {
+      score += 20;
+    } else if (currentPath.endsWith(fingerprint.path.split(" > ").slice(-2).join(" > "))) {
+      score += 10;
+    }
+    return score;
+  }
+  function findContextLandmark(element) {
+    const landmarks = ["header", "nav", "main", "footer", "aside", "form"];
+    let current = element;
+    while (current && current !== document.body) {
+      const tag = current.tagName.toLowerCase();
+      if (landmarks.includes(tag)) {
+        return tag;
+      }
+      const role = current.getAttribute("role");
+      if (role && ["banner", "navigation", "main", "contentinfo", "complementary", "search"].includes(role)) {
+        return role;
+      }
+      current = current.parentElement;
+    }
+    return "document";
+  }
+  function extractStableClasses(element) {
+    if (!element.className || typeof element.className !== "string") return [];
+    const classes = element.className.split(/\s+/).filter(Boolean);
+    const dynamicPatterns = [
+      /^is-/,
+      /^has-/,
+      /^hover:/,
+      /^focus:/,
+      /^active:/,
+      /^!/,
+      /--active$/,
+      /--open$/,
+      /--expanded$/
+    ];
+    return classes.filter((cls) => {
+      return !dynamicPatterns.some((pattern) => pattern.test(cls));
+    });
+  }
+  function buildStructuralPath(element) {
+    const parts = [];
+    let current = element;
+    let depth = 0;
+    while (current && current !== document.body && depth < 3) {
+      parts.unshift(current.tagName.toLowerCase());
+      current = current.parentElement;
+      depth++;
+    }
+    return parts.join(" > ");
   }
 
   // applications/chrome_extension/content/hintGenerator.ts
@@ -395,20 +494,36 @@
   var LEFT_HAND_KEYS = new Set("qwertasdfgzxcvb".split(""));
   var MAXIMUM_HINT_LENGTH = 4;
   var PREFERRED_HINT_LENGTH = 2;
-  var ALLOWED_HINT_CHARACTERS = new Set("abcdefghijklmnopqrstuvwxyz".split(""));
+  var ALLOWED_HINT_CHARACTERS = new Set("qwertasdfgzxcvb".split(""));
+  var PRIMARY_KEYS = "qwertasdfgzxcvb".split("");
+  var SECONDARY_KEYS = "yuiophjklnm".split("");
   function generateUniqueHints(interactiveElements, domainMemory = {}) {
     if (interactiveElements.length === 0) {
       return;
     }
     const assignedHints = /* @__PURE__ */ new Set();
-    for (const element of interactiveElements) {
-      const normalizedLabel = element.semanticLabel?.trim().toLowerCase();
-      if (normalizedLabel && domainMemory[normalizedLabel]) {
-        const memoryHint = domainMemory[normalizedLabel];
-        if (!assignedHints.has(memoryHint)) {
-          element.generatedHint = memoryHint;
-          assignedHints.add(memoryHint);
+    const memoryHintsUsedThisPass = /* @__PURE__ */ new Set();
+    for (const [memoryHint, fingerprint] of Object.entries(domainMemory)) {
+      if (memoryHintsUsedThisPass.has(memoryHint)) continue;
+      let bestScore = 0;
+      let bestElement = null;
+      for (const element of interactiveElements) {
+        if (element.generatedHint) continue;
+        const score = scoreElementAgainstFingerprint(
+          element.domElement,
+          element.interactionType,
+          element.rawSemanticLabel,
+          fingerprint
+        );
+        if (score > bestScore) {
+          bestScore = score;
+          bestElement = element;
         }
+      }
+      if (bestElement && bestScore >= 40) {
+        bestElement.generatedHint = memoryHint;
+        memoryHintsUsedThisPass.add(memoryHint);
+        assignedHints.add(memoryHint);
       }
     }
     const elementCandidates = [];
@@ -483,10 +598,14 @@
     const uniqueCandidates = [];
     const seenCandidates = /* @__PURE__ */ new Set();
     for (const candidate of candidates) {
-      if (!seenCandidates.has(candidate)) {
+      const isAllowed = candidate.split("").every((c) => ALLOWED_HINT_CHARACTERS.has(c));
+      if (isAllowed && !seenCandidates.has(candidate)) {
         seenCandidates.add(candidate);
         uniqueCandidates.push(candidate);
       }
+    }
+    if (uniqueCandidates.length === 0) {
+      return generateErgonomicFallbackCandidates();
     }
     return uniqueCandidates;
   }
@@ -507,10 +626,9 @@
     );
   }
   function generateErgonomicFallbackCandidates() {
-    const preferredKeys = "asdfgqwertzxcv".split("");
     const candidates = [];
-    for (const firstKey of preferredKeys) {
-      for (const secondKey of preferredKeys) {
+    for (const firstKey of PRIMARY_KEYS) {
+      for (const secondKey of PRIMARY_KEYS) {
         if (firstKey !== secondKey) {
           candidates.push(firstKey + secondKey);
         }
@@ -586,35 +704,31 @@
     return (hintText.length - PREFERRED_HINT_LENGTH) * 2;
   }
   function generateFallbackHint(assignedHints, semanticLabel) {
-    const tokens = tokenizeSemanticLabel(semanticLabel);
-    const baseCharacter = tokens.length > 0 && tokens[0][0] ? tokens[0][0] : "a";
-    const extensionKeys = "asdfgqwertzxcvbhjklnm".split("");
-    for (let hintLength = 2; hintLength <= MAXIMUM_HINT_LENGTH; hintLength++) {
-      for (const extensionKey of extensionKeys) {
-        const candidateHint = baseCharacter + extensionKey;
-        if (candidateHint.length === hintLength && !assignedHints.has(candidateHint)) {
-          return candidateHint;
-        }
+    for (const keyA of PRIMARY_KEYS) {
+      for (const keyB of PRIMARY_KEYS) {
+        const hint = keyA + keyB;
+        if (!assignedHints.has(hint)) return hint;
       }
-      if (hintLength === 3) {
-        for (const keyA of extensionKeys) {
-          for (const keyB of extensionKeys) {
-            const candidateHint = baseCharacter + keyA + keyB;
-            if (!assignedHints.has(candidateHint)) {
-              return candidateHint;
-            }
-          }
+    }
+    for (const keyA of PRIMARY_KEYS) {
+      for (const keyB of PRIMARY_KEYS) {
+        for (const keyC of PRIMARY_KEYS) {
+          const hint = keyA + keyB + keyC;
+          if (!assignedHints.has(hint)) return hint;
         }
       }
     }
-    const fallbackKeys = "asdfgqwertzxcv".split("");
-    for (const keyA of fallbackKeys) {
-      for (const keyB of fallbackKeys) {
-        for (const keyC of fallbackKeys) {
-          const candidateHint = keyA + keyB + keyC;
-          if (!assignedHints.has(candidateHint)) {
-            return candidateHint;
-          }
+    for (const keyA of SECONDARY_KEYS) {
+      for (const keyB of SECONDARY_KEYS) {
+        const hint = keyA + keyB;
+        if (!assignedHints.has(hint)) return hint;
+      }
+    }
+    for (const keyA of SECONDARY_KEYS) {
+      for (const keyB of SECONDARY_KEYS) {
+        for (const keyC of SECONDARY_KEYS) {
+          const hint = keyA + keyB + keyC;
+          if (!assignedHints.has(hint)) return hint;
         }
       }
     }
@@ -979,26 +1093,29 @@
   function getDomainMemory() {
     return currentDomainMemory;
   }
-  function rememberHint(semanticLabel, hint) {
-    if (!semanticLabel || !hint) return;
-    const normalizedLabel = semanticLabel.trim().toLowerCase();
-    if (!normalizedLabel) return;
-    currentDomainMemory[normalizedLabel] = hint;
+  function rememberHint(element, interactionType, rawSemanticLabel, hint) {
+    if (!element || !hint) return;
+    const fingerprint = generateFingerprint(element, interactionType, rawSemanticLabel);
+    currentDomainMemory[hint] = fingerprint;
     const domainKey = `memory_domain_${window.location.hostname}`;
     const payload = {
       [domainKey]: currentDomainMemory
     };
-    if (chrome.storage) {
-      if (chrome.storage.local) {
-        chrome.storage.local.set(payload).catch((err) => {
-          console.warn("[EasyClick] Failed to save memory to local storage:", err);
-        });
+    try {
+      if (chrome.storage) {
+        if (chrome.storage.local) {
+          chrome.storage.local.set(payload).catch((err) => {
+            console.warn("[EasyClick] Failed to save memory to local storage:", err);
+          });
+        }
+        if (chrome.storage.sync) {
+          chrome.storage.sync.set(payload).catch((err) => {
+            console.warn("[EasyClick] Failed to save memory to sync storage:", err);
+          });
+        }
       }
-      if (chrome.storage.sync) {
-        chrome.storage.sync.set(payload).catch((err) => {
-          console.warn("[EasyClick] Failed to save memory to sync storage:", err);
-        });
-      }
+    } catch (error) {
+      console.warn("[EasyClick] Extension context invalidated or storage error:", error);
     }
   }
 
@@ -1080,11 +1197,11 @@
       (element) => element.generatedHint.toLowerCase() === currentTypedInput
     );
     if (exactMatchElement) {
-      if (exactMatchElement.semanticLabel) {
-        rememberHint(exactMatchElement.semanticLabel, exactMatchElement.generatedHint);
-      }
       setTimeout(() => {
         executeElementAction(exactMatchElement.domElement, exactMatchElement.interactionType);
+        if (exactMatchElement.rawSemanticLabel) {
+          rememberHint(exactMatchElement.domElement, exactMatchElement.interactionType, exactMatchElement.rawSemanticLabel, exactMatchElement.generatedHint);
+        }
         requestHintModeDeactivation();
       }, 80);
       return;
@@ -1118,6 +1235,127 @@
     }
   }
 
+  // applications/chrome_extension/content/hoverCaptureEngine.ts
+  var isCaptureModeActive = false;
+  var captureOverlay = null;
+  var currentHoveredElement = null;
+  var candidateElements = [];
+  function activateHoverCaptureMode() {
+    if (isCaptureModeActive) return;
+    isCaptureModeActive = true;
+    candidateElements = scanInteractiveElements("all");
+    createCaptureOverlay();
+    document.addEventListener("mousemove", handleMouseMove, true);
+    document.addEventListener("click", handleClick, true);
+    document.addEventListener("keydown", handleKeyDown, true);
+  }
+  function deactivateHoverCaptureMode() {
+    if (!isCaptureModeActive) return;
+    isCaptureModeActive = false;
+    removeCaptureOverlay();
+    document.removeEventListener("mousemove", handleMouseMove, true);
+    document.removeEventListener("click", handleClick, true);
+    document.removeEventListener("keydown", handleKeyDown, true);
+    currentHoveredElement = null;
+    candidateElements = [];
+  }
+  function createCaptureOverlay() {
+    captureOverlay = document.createElement("div");
+    captureOverlay.id = "easyclick-capture-overlay";
+    captureOverlay.style.position = "fixed";
+    captureOverlay.style.top = "0";
+    captureOverlay.style.left = "0";
+    captureOverlay.style.width = "100vw";
+    captureOverlay.style.height = "100vh";
+    captureOverlay.style.pointerEvents = "none";
+    captureOverlay.style.zIndex = "2147483647";
+    const instructionBanner = document.createElement("div");
+    instructionBanner.style.position = "absolute";
+    instructionBanner.style.top = "20px";
+    instructionBanner.style.left = "50%";
+    instructionBanner.style.transform = "translateX(-50%)";
+    instructionBanner.style.background = "rgba(0, 0, 0, 0.8)";
+    instructionBanner.style.color = "white";
+    instructionBanner.style.padding = "10px 20px";
+    instructionBanner.style.borderRadius = "8px";
+    instructionBanner.style.fontFamily = "sans-serif";
+    instructionBanner.style.fontWeight = "bold";
+    instructionBanner.style.fontSize = "16px";
+    instructionBanner.textContent = "Hover over an element and click to save. Press Esc to cancel.";
+    captureOverlay.appendChild(instructionBanner);
+    document.body.appendChild(captureOverlay);
+  }
+  function removeCaptureOverlay() {
+    if (captureOverlay && captureOverlay.parentElement) {
+      captureOverlay.parentElement.removeChild(captureOverlay);
+    }
+    captureOverlay = null;
+  }
+  function handleMouseMove(event) {
+    if (!isCaptureModeActive) return;
+    let bestMatch = null;
+    let smallestArea = Infinity;
+    for (const element of candidateElements) {
+      const rect = element.viewportBoundingRectangle;
+      if (event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom) {
+        const area = rect.width * rect.height;
+        if (area < smallestArea) {
+          smallestArea = area;
+          bestMatch = element;
+        }
+      }
+    }
+    currentHoveredElement = bestMatch;
+    drawOutline(bestMatch);
+  }
+  function drawOutline(element) {
+    if (!captureOverlay) return;
+    const existingOutline = document.getElementById("easyclick-capture-outline");
+    if (existingOutline) {
+      existingOutline.remove();
+    }
+    if (!element) return;
+    const rect = element.viewportBoundingRectangle;
+    const outline = document.createElement("div");
+    outline.id = "easyclick-capture-outline";
+    outline.style.position = "absolute";
+    outline.style.top = `${rect.top}px`;
+    outline.style.left = `${rect.left}px`;
+    outline.style.width = `${rect.width}px`;
+    outline.style.height = `${rect.height}px`;
+    outline.style.border = "3px solid #ff3366";
+    outline.style.backgroundColor = "rgba(255, 51, 102, 0.2)";
+    outline.style.boxSizing = "border-box";
+    outline.style.borderRadius = "4px";
+    outline.style.pointerEvents = "none";
+    outline.style.transition = "all 0.1s ease-out";
+    captureOverlay.appendChild(outline);
+  }
+  function handleClick(event) {
+    if (!isCaptureModeActive) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    if (currentHoveredElement) {
+      const customHint = window.prompt(`Assign a 2-letter hint for this element:
+(Label: ${currentHoveredElement.rawSemanticLabel})`);
+      if (customHint && customHint.trim().length > 0) {
+        const hint = customHint.trim().toLowerCase();
+        rememberHint(currentHoveredElement.domElement, currentHoveredElement.interactionType, currentHoveredElement.rawSemanticLabel, hint);
+        alert(`Hint '${hint}' successfully saved!`);
+      }
+    }
+    deactivateHoverCaptureMode();
+  }
+  function handleKeyDown(event) {
+    if (!isCaptureModeActive) return;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      deactivateHoverCaptureMode();
+    }
+  }
+
   // applications/chrome_extension/content/contentScript.ts
   var isHintModeActive = false;
   var currentInteractiveElements2 = [];
@@ -1131,11 +1369,6 @@
     if (event.key === "Control") {
       isControlKeyCurrentlyHeld = true;
       wasNonModifierKeyPressedDuringModifierSequence = false;
-      if (isAltKeyCurrentlyHeld) {
-        event.preventDefault();
-        toggleHintMode();
-        return;
-      }
       return;
     }
     if (event.key === "Alt") {
@@ -1143,7 +1376,11 @@
       wasNonModifierKeyPressedDuringModifierSequence = false;
       if (isControlKeyCurrentlyHeld) {
         event.preventDefault();
-        toggleHintMode();
+        if (event.shiftKey) {
+          toggleHintMode("buttons_and_links");
+        } else {
+          toggleHintMode("explicit_save_only");
+        }
         return;
       }
       return;
@@ -1151,18 +1388,26 @@
     if (event.key !== "Shift" && event.key !== "Meta") {
       wasNonModifierKeyPressedDuringModifierSequence = true;
     }
+    if (event.key.toLowerCase() === "s" && event.ctrlKey && event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      deactivateHintMode();
+      activateHoverCaptureMode();
+      return;
+    }
     if (event.key === "." && event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      toggleHintMode();
+      toggleHintMode("all");
       return;
     }
     if (event.key === ";" && event.ctrlKey && !event.shiftKey && !event.metaKey && !event.altKey) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      toggleHintMode();
+      toggleHintMode("all");
       return;
     }
   }, true);
@@ -1209,24 +1454,50 @@
       setTimeout(() => toast.remove(), 350);
     }, 2500);
   }
-  function toggleHintMode() {
+  function toggleHintMode(mode = "all") {
     if (isHintModeActive) {
       deactivateHintMode();
     } else {
-      activateHintMode();
+      activateHintMode(mode);
     }
   }
-  function activateHintMode() {
+  function activateHintMode(mode = "all") {
     if (isHintModeActive) {
       return;
     }
     isHintModeActive = true;
-    currentInteractiveElements2 = scanInteractiveElements();
+    let scannedElements = scanInteractiveElements(mode === "buttons_and_links" ? "buttons_and_links" : "all");
+    if (scannedElements.length === 0) {
+      isHintModeActive = false;
+      return;
+    }
+    if (mode === "explicit_save_only") {
+      const memory = getDomainMemory();
+      const explicitlySavedElements = [];
+      for (const [memoryHint, fingerprint] of Object.entries(memory)) {
+        let bestScore = 0;
+        let bestElement = null;
+        for (const element of scannedElements) {
+          const score = scoreElementAgainstFingerprint(element.domElement, element.interactionType, element.rawSemanticLabel, fingerprint);
+          if (score > bestScore) {
+            bestScore = score;
+            bestElement = element;
+          }
+        }
+        if (bestElement && bestScore >= 40) {
+          bestElement.generatedHint = memoryHint;
+          explicitlySavedElements.push(bestElement);
+        }
+      }
+      currentInteractiveElements2 = explicitlySavedElements;
+    } else {
+      currentInteractiveElements2 = scannedElements;
+      generateUniqueHints(currentInteractiveElements2, getDomainMemory());
+    }
     if (currentInteractiveElements2.length === 0) {
       isHintModeActive = false;
       return;
     }
-    generateUniqueHints(currentInteractiveElements2, getDomainMemory());
     createOverlays(currentInteractiveElements2);
     activateKeyboardListening(currentInteractiveElements2, deactivateHintMode);
     attachDynamicPageObservers();
