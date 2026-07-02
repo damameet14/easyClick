@@ -214,26 +214,33 @@ function collectCursorPointerElements(existingCandidates: HTMLElement[]): void {
 }
 
 /**
- * Removes duplicate element references and aggressively filters out child elements 
+ * Removes duplicate element references and aggressively filters out generic child elements 
  * that are fully contained within interactive parent elements (e.g., SVG inside a Button).
+ * We preserve explicit semantic children (like actual buttons inside a clickable div) 
+ * so they remain selectable.
  */
 function deduplicateElements(elements: HTMLElement[]): HTMLElement[] {
   const uniqueElementSet = new Set<HTMLElement>(elements);
   const deduplicatedList: HTMLElement[] = [];
 
   for (const element of uniqueElementSet) {
-    let isChildOfInteractive = false;
-    let current = element.parentElement;
+    let shouldDeduplicate = false;
     
-    while (current && current !== document.body) {
-      if (uniqueElementSet.has(current)) {
-        isChildOfInteractive = true;
-        break;
+    // Only strip generic "unknown" children (divs/spans/svgs). 
+    // Explicit buttons, inputs, links, etc. inside containers should be kept.
+    const type = classifyElementInteractionType(element);
+    if (type === "unknown") {
+      let current = element.parentElement;
+      while (current && current !== document.body) {
+        if (uniqueElementSet.has(current)) {
+          shouldDeduplicate = true;
+          break;
+        }
+        current = current.parentElement;
       }
-      current = current.parentElement;
     }
 
-    if (!isChildOfInteractive) {
+    if (!shouldDeduplicate) {
       deduplicatedList.push(element);
     }
   }

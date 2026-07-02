@@ -277,16 +277,19 @@
     const uniqueElementSet = new Set(elements);
     const deduplicatedList = [];
     for (const element of uniqueElementSet) {
-      let isChildOfInteractive = false;
-      let current = element.parentElement;
-      while (current && current !== document.body) {
-        if (uniqueElementSet.has(current)) {
-          isChildOfInteractive = true;
-          break;
+      let shouldDeduplicate = false;
+      const type = classifyElementInteractionType(element);
+      if (type === "unknown") {
+        let current = element.parentElement;
+        while (current && current !== document.body) {
+          if (uniqueElementSet.has(current)) {
+            shouldDeduplicate = true;
+            break;
+          }
+          current = current.parentElement;
         }
-        current = current.parentElement;
       }
-      if (!isChildOfInteractive) {
+      if (!shouldDeduplicate) {
         deduplicatedList.push(element);
       }
     }
@@ -1364,8 +1367,12 @@
   var SCROLL_RESIZE_THROTTLE_INTERVAL_MILLISECONDS = 200;
   var isControlKeyCurrentlyHeld = false;
   var isAltKeyCurrentlyHeld = false;
+  var isShiftKeyCurrentlyHeld = false;
   var wasNonModifierKeyPressedDuringModifierSequence = false;
   document.addEventListener("keydown", (event) => {
+    if (event.key !== "Control" && event.key !== "Alt" && event.key !== "Shift" && event.key !== "Meta") {
+      wasNonModifierKeyPressedDuringModifierSequence = true;
+    }
     if (event.key === "Control") {
       isControlKeyCurrentlyHeld = true;
       wasNonModifierKeyPressedDuringModifierSequence = false;
@@ -1373,20 +1380,27 @@
     }
     if (event.key === "Alt") {
       isAltKeyCurrentlyHeld = true;
-      wasNonModifierKeyPressedDuringModifierSequence = false;
-      if (isControlKeyCurrentlyHeld) {
+      if (isControlKeyCurrentlyHeld && !isShiftKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
         event.preventDefault();
-        if (event.shiftKey) {
-          toggleHintMode("buttons_and_links");
-        } else {
-          toggleHintMode("explicit_save_only");
-        }
+        toggleHintMode("explicit_save_only");
+        return;
+      }
+      if (isControlKeyCurrentlyHeld && isShiftKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
+        event.preventDefault();
+        toggleHintMode("buttons_and_links");
         return;
       }
       return;
     }
-    if (event.key !== "Shift" && event.key !== "Meta") {
-      wasNonModifierKeyPressedDuringModifierSequence = true;
+    if (event.key === "Shift") {
+      isShiftKeyCurrentlyHeld = true;
+      wasNonModifierKeyPressedDuringModifierSequence = false;
+      if (isControlKeyCurrentlyHeld && isAltKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
+        event.preventDefault();
+        toggleHintMode("buttons_and_links");
+        return;
+      }
+      return;
     }
     if (event.key.toLowerCase() === "s" && event.ctrlKey && event.shiftKey && !event.altKey) {
       event.preventDefault();
@@ -1417,6 +1431,9 @@
     }
     if (event.key === "Alt") {
       isAltKeyCurrentlyHeld = false;
+    }
+    if (event.key === "Shift") {
+      isShiftKeyCurrentlyHeld = false;
     }
   }, true);
   function showContentScriptLoadedToast() {

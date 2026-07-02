@@ -51,19 +51,17 @@ const SCROLL_RESIZE_THROTTLE_INTERVAL_MILLISECONDS = 200;
  * Secondary: Ctrl + ;
  * Tertiary:  Ctrl + Alt (detected via modifier key tracking — may be
  *            unreliable on Windows where Ctrl+Alt maps to AltGr)
- *
- * For Ctrl+Alt, we track modifier state manually and detect when:
- *   - Alt is pressed while Ctrl is already held, OR
- *   - Ctrl is pressed while Alt is already held.
- * A non-modifier key pressed between the two resets the tracking to
- * avoid false triggers.
  */
 let isControlKeyCurrentlyHeld = false;
 let isAltKeyCurrentlyHeld = false;
+let isShiftKeyCurrentlyHeld = false;
 let wasNonModifierKeyPressedDuringModifierSequence = false;
 
 document.addEventListener("keydown", (event: KeyboardEvent) => {
-  /* Track modifier key state */
+  if (event.key !== "Control" && event.key !== "Alt" && event.key !== "Shift" && event.key !== "Meta") {
+    wasNonModifierKeyPressedDuringModifierSequence = true;
+  }
+
   if (event.key === "Control") {
     isControlKeyCurrentlyHeld = true;
     wasNonModifierKeyPressedDuringModifierSequence = false;
@@ -72,26 +70,36 @@ document.addEventListener("keydown", (event: KeyboardEvent) => {
 
   if (event.key === "Alt") {
     isAltKeyCurrentlyHeld = true;
+    
+    // Check if it's Ctrl + Alt (without Shift)
+    if (isControlKeyCurrentlyHeld && !isShiftKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
+      event.preventDefault();
+      toggleHintMode("explicit_save_only");
+      return;
+    }
+    
+    // Check if it's Ctrl + Shift + Alt
+    if (isControlKeyCurrentlyHeld && isShiftKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
+      event.preventDefault();
+      toggleHintMode("buttons_and_links");
+      return;
+    }
+    return;
+  }
+  
+  if (event.key === "Shift") {
+    isShiftKeyCurrentlyHeld = true;
     wasNonModifierKeyPressedDuringModifierSequence = false;
     
-    // Ctrl + Alt -> Explicit Save Mode
-    // Ctrl + Shift + Alt -> Buttons & Links Mode
-    if (isControlKeyCurrentlyHeld) {
+    // Check if it's Ctrl + Alt + Shift
+    if (isControlKeyCurrentlyHeld && isAltKeyCurrentlyHeld && !wasNonModifierKeyPressedDuringModifierSequence) {
       event.preventDefault();
-      if (event.shiftKey) {
-        toggleHintMode("buttons_and_links");
-      } else {
-        toggleHintMode("explicit_save_only");
-      }
+      toggleHintMode("buttons_and_links");
       return;
     }
     return;
   }
 
-  /* Mark that a non-modifier key was pressed (invalidates modifier sequences) */
-  if (event.key !== "Shift" && event.key !== "Meta") {
-    wasNonModifierKeyPressedDuringModifierSequence = true;
-  }
 
   /* Ctrl + Shift + S — Hover Capture Mode */
   if (event.key.toLowerCase() === "s" && event.ctrlKey && event.shiftKey && !event.altKey) {
@@ -128,6 +136,9 @@ document.addEventListener("keyup", (event: KeyboardEvent) => {
   }
   if (event.key === "Alt") {
     isAltKeyCurrentlyHeld = false;
+  }
+  if (event.key === "Shift") {
+    isShiftKeyCurrentlyHeld = false;
   }
 }, true);
 
